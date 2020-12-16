@@ -1,0 +1,13 @@
+diff --git a/spack_configs/toss_3_x86_64_ib/packages.yaml b/spack_configs/toss_3_x86_64_ib/packages.yaml
+--- a/spack_configs/toss_3_x86_64_ib/packages.yaml
++++ b/spack_configs/toss_3_x86_64_ib/packages.yaml
+@@ -1,5 +1,9 @@
+ packages:
+   all:
++    permissions:
++      read: group
++      write: group
++      group: mfem
+     # This defaults us to machine specific flags of ivybridge which allows
+     # us to run on broadwell as well
+     target: [ivybridge]
