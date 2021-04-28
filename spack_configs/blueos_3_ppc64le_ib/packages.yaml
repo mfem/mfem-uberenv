@@ -63,12 +63,10 @@ packages:
 # Dev tools
   cmake:
     buildable: false
-    version: [3.18.0, 3.14.5]
+    version: [3.14.5]
     externals:
     - spec: cmake@3.14.5
       prefix: /usr/tce/packages/cmake/cmake-3.14.5
-    - spec: cmake@3.18.0
-      prefix: /usr/tce/packages/cmake/cmake-3.18.0
 
   python:
     buildable: false
@@ -76,61 +74,3 @@ packages:
     externals:
     - spec: python@3.8.2
       prefix: /usr/tce/packages/python/python-3.8.2
-
-  py-sphinx:
-    buildable: false
-    version: [2.2.0]
-    externals:
-    - spec: py-sphinx@2.2.0
-      prefix: /usr/tce/packages/python/python-3.8.2/
-
-  doxygen:
-    buildable: False
-    version: [1.8.5]
-    externals:
-    - spec: doxygen@1.8.5
-      prefix: /usr/bin
-
-  # System level packages to not build
-  autoconf:
-    buildable: false
-    externals:
-      - spec: autoconf
-        prefix: /usr
-  automake:
-    buildable: false
-    externals:
-      - spec: automake
-        prefix: /usr
-  bzip2:
-    buildable: false
-    externals:
-      - spec: bzip2
-        prefix: /usr
-  gettext:
-    buildable: false
-    externals:
-      - spec: gettext
-        prefix: /usr
-  libtool:
-    buildable: false
-    externals:
-      - spec: libtool
-        prefix: /usr
-  m4:
-    buildable: false
-    externals:
-      - spec: m4
-        prefix: /usr
-  tar:
-    buildable: false
-    externals:
-      - spec: tar
-        prefix: /usr
-  netlib-lapack:
-    buildable: false
-    externals:
-      # This is the one that has the trailing underscores in name mangling, needed for MFEM compat
-      - spec: netlib-lapack@3.9.0
-        prefix: /usr/tcetmp/packages/lapack/lapack-3.9.0-gcc-7.3.1/lib/
-
