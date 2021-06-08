@@ -423,37 +423,37 @@ class Mfem(Package):
 
         cxxflags = spec.compiler_flags['cxxflags']
 
-        if cxxflags:
-            # Add opt/debug flags if they are not present in global cxx flags
-            opt_flag_found = any(f in self.compiler.opt_flags
-                                 for f in cxxflags)
-            debug_flag_found = any(f in self.compiler.debug_flags
-                                   for f in cxxflags)
+        #if cxxflags:
+        # Add opt/debug flags if they are not present in global cxx flags
+        opt_flag_found = any(f in self.compiler.opt_flags
+                             for f in cxxflags)
+        debug_flag_found = any(f in self.compiler.debug_flags
+                               for f in cxxflags)
 
-            if '+debug' in spec:
-                if not debug_flag_found:
-                    cxxflags.append('-g')
-                if not opt_flag_found:
-                    cxxflags.append('-O0')
-            else:
-                if not opt_flag_found:
-                    cxxflags.append('-O2')
+        if '+debug' in spec:
+            if not debug_flag_found:
+                cxxflags.append('-g')
+            if not opt_flag_found:
+                cxxflags.append('-O0')
+        else:
+            if not opt_flag_found:
+                cxxflags.append('-O2')
 
-            if '+pedantic' in spec:
-                cxxflags.append('-pedantic -Wall -Werror')
+        if '+pedantic' in spec:
+            cxxflags.append('-pedantic -Wall -Werror')
 
-            cxxflags = [(xcompiler + flag) for flag in cxxflags]
-            if '+cuda' in spec:
-                cxxflags += [
-                    '-x=cu --expt-extended-lambda -arch=%s' % cuda_arch,
-                    '-ccbin %s' % (spec['mpi'].mpicxx if '+mpi' in spec
-                                   else env['CXX'])]
-            if self.spec.satisfies('@4.0.0:'):
-                cxxflags.append(self.compiler.cxx11_flag)
-            # The cxxflags are set by the spack c++ compiler wrapper. We also
-            # set CXXFLAGS explicitly, for clarity, and to properly export the
-            # cxxflags in the variable MFEM_CXXFLAGS in config.mk.
-            options += ['CXXFLAGS=%s' % ' '.join(cxxflags)]
+        cxxflags = [(xcompiler + flag) for flag in cxxflags]
+        if '+cuda' in spec:
+            cxxflags += [
+                '-x=cu --expt-extended-lambda -arch=%s' % cuda_arch,
+                '-ccbin %s' % (spec['mpi'].mpicxx if '+mpi' in spec
+                               else env['CXX'])]
+        if self.spec.satisfies('@4.0.0:'):
+            cxxflags.append(self.compiler.cxx11_flag)
+        # The cxxflags are set by the spack c++ compiler wrapper. We also
+        # set CXXFLAGS explicitly, for clarity, and to properly export the
+        # cxxflags in the variable MFEM_CXXFLAGS in config.mk.
+        options += ['CXXFLAGS=%s' % ' '.join(cxxflags)]
 
         if '~static' in spec:
             options += ['STATIC=NO']
