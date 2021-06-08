@@ -96,6 +96,8 @@ class Mfem(Package):
             description='Build static library')
     variant('shared', default=False,
             description='Build shared library')
+    variant('pedantic', default=True,
+            description='Build library with pendantic warnings and errors')
     variant('mpi', default=True,
             description='Enable MPI parallelism')
     # Can we make the default value for 'metis' to depend on the 'mpi' value?
@@ -436,6 +438,9 @@ class Mfem(Package):
             else:
                 if not opt_flag_found:
                     cxxflags.append('-O2')
+
+            if '+pedantic' in spec:
+                cxxflags.append('-pedantic -Wall -Werror')
 
             cxxflags = [(xcompiler + flag) for flag in cxxflags]
             if '+cuda' in spec:
