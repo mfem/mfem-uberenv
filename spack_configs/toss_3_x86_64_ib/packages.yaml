@@ -75,6 +75,11 @@ packages:
 
   # blas is a bit more complicated because its a virtual package so fake it with
   # the following per spack docs
+  blas:
+    buildable: false
+  lapack:
+    buildable: false
+
   netlib-lapack:
     buildable: false
     externals:
