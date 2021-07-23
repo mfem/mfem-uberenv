@@ -69,9 +69,17 @@ packages:
 
   netlib-lapack:
     buildable: false
+    version: [3.9.0]
     externals:
-    - spec: netlib-lapack@3.6.1
-      prefix: /usr
+    - spec: netlib-lapack@3.9.0
+      prefix: /usr/tcetmp/packages/lapack/lapack-3.9.0-P9-xl-2020.03.18
+
+#   # Blas/Lapack virtual package provider
+#   netlib-lapack:
+#     buildable: false
+#     externals:
+#     - spec: netlib-lapack@3.6.1
+#       prefix: /usr
 
 # Dev tools
   cmake:
