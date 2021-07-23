@@ -60,6 +60,27 @@ packages:
     - spec: spectrum-mpi@10.3.1.03rtm0%xl@16.1.1.8
       prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-xl-2020.09.17
 
+  # blas is a bit more complicated because its a virtual package so fake it with
+  # the following per spack docs
+  blas:
+    buildable: false
+  lapack:
+    buildable: false
+
+  netlib-lapack:
+    buildable: false
+    version: [3.9.0]
+    externals:
+    - spec: netlib-lapack@3.9.0
+      prefix: /usr/tcetmp/packages/lapack/lapack-3.9.0-P9-xl-2020.03.18
+
+#   # Blas/Lapack virtual package provider
+#   netlib-lapack:
+#     buildable: false
+#     externals:
+#     - spec: netlib-lapack@3.6.1
+#       prefix: /usr
+
 # Dev tools
   cmake:
     buildable: false
