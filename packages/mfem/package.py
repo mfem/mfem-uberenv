@@ -1,17 +1,14 @@
-# Copyright 2013-2020 Lawrence Livermore National Security, LLC and other
+# Copyright 2013-2021 Lawrence Livermore National Security, LLC and other
 # Spack Project Developers. See the top-level COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-import socket
 import os
 import shutil
 import sys
 
 from spack import *
 
-from os import environ as env
-from os.path import join as pjoin
 
 class Mfem(Package, CudaPackage, ROCmPackage):
     """Free, lightweight, scalable C++ library for finite element methods."""
@@ -52,10 +49,13 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     # other version.
     version('develop', branch='master')
 
+    version('4.3.0',
+            sha256='3a495602121b986049286ea0b23512279cdbdfb43c15c42a1511b521051fbe38',
+            url='https://bit.ly/mfem-4-3', extension='tar.gz')
+
     version('4.2.0',
             '4352a225b55948d2e73a5ee88cece0e88bdbe7ba6726a23d68b2736d3221a86d',
-            url='https://bit.ly/mfem-4-2', extension='tar.gz',
-            preferred=True)
+            url='https://bit.ly/mfem-4-2', extension='tar.gz')
 
     version('4.1.0',
             '4c83fdcf083f8e2f5b37200a755db843cdb858811e25a8486ad36b2cbec0e11d',
@@ -310,21 +310,6 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     def setup_build_environment(self, env):
         env.unset('MFEM_DIR')
         env.unset('MFEM_BUILD_DIR')
-
-    def _get_sys_type(self, spec):
-        sys_type = str(spec.architecture)
-        # if on llnl systems, we can use the SYS_TYPE
-        if "SYS_TYPE" in env:
-            sys_type = env["SYS_TYPE"]
-        return sys_type
-
-    def _get_host_config_path(self, spec):
-        host_config_path = "hc-%s-%s-%s.mk" % (socket.gethostname().rstrip('1234567890'),
-                                               self._get_sys_type(spec),
-                                               spec.format('{name}-{version}-{compiler}-{hash:8}'))
-        dest_dir = self.stage.source_path
-        host_config_path = os.path.abspath(pjoin(dest_dir, host_config_path))
-        return host_config_path
 
     #
     # Note: Although MFEM does support CMake configuration, MFEM
@@ -764,9 +749,6 @@ class Mfem(Package, CudaPackage, ROCmPackage):
 
         make('config', *options, parallel=False)
         make('info', parallel=False)
-
-        # Uberenv: Save the config_mk with a spec dependent name
-        copy('config/config.mk',self._get_host_config_path(spec))
 
     def build(self, spec, prefix):
         make('lib')
