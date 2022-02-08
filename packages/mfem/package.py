@@ -479,9 +479,12 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             # The hypre package always links with 'blas' and 'lapack'.
             all_hypre_libs = hypre.libs + hypre['lapack'].libs + \
                 hypre['blas'].libs
+            hypre_cuda_libs = ' -lcusparse -lcurand' if ('+cuda' in hypre) \
+                else ''
             options += [
                 'HYPRE_OPT=-I%s' % hypre.prefix.include,
-                'HYPRE_LIB=%s' % ld_flags_from_library_list(all_hypre_libs)]
+                'HYPRE_LIB=%s%s' % 
+                (ld_flags_from_library_list(all_hypre_libs), hypre_cuda_libs)]
 
         if '+metis' in spec:
             options += [
