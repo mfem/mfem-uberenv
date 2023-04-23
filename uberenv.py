@@ -1,7 +1,7 @@
 #!/bin/sh
 "exec" "python" "-u" "-B" "$0" "$@"
 ###############################################################################
-# Copyright (c) 2014-2020, Lawrence Livermore National Security, LLC.
+# Copyright (c) 2014-2021, Lawrence Livermore National Security, LLC.
 #
 # Produced at the Lawrence Livermore National Laboratory
 #
@@ -47,7 +47,8 @@
 """
  file: uberenv.py
 
- description: automates using spack to install a project.
+ description: automates using a package manager to install a project.
+ Uses spack on Unix-based systems and Vcpkg on Windows-based systems.
 
 """
 
@@ -66,12 +67,13 @@ from optparse import OptionParser
 
 from os import environ as env
 from os.path import join as pjoin
+from os.path import abspath as pabs
 
 
 def sexe(cmd,ret_output=False,echo=False):
     """ Helper for executing shell commands. """
     if echo:
-        print("[exe: {}]".format(cmd))
+        print("[exe: {0}]".format(cmd))
     if ret_output:
         p = subprocess.Popen(cmd,
                              shell=True,
@@ -96,7 +98,7 @@ def parse_args():
     # where to install
     parser.add_option("--prefix",
                       dest="prefix",
-                      default="uberenv_libs",
+                      default=None,
                       help="destination directory")
 
     # what compiler to use
@@ -104,6 +106,12 @@ def parse_args():
                       dest="spec",
                       default=None,
                       help="spack compiler spec")
+
+    # for vcpkg, what architecture to target
+    parser.add_option("--triplet",
+                      dest="vcpkg_triplet",
+                      default=None,
+                      help="vcpkg architecture triplet")
 
     # optional location of spack mirror
     parser.add_option("--mirror",
@@ -131,11 +139,25 @@ def parse_args():
                       default=None,
                       help="dir with spack settings files (compilers.yaml, packages.yaml, etc)")
 
+    # this option allows a user to set the directory for their vcpkg ports on Windows
+    parser.add_option("--vcpkg-ports-path",
+                      dest="vcpkg_ports_path",
+                      default=None,
+                      help="dir with vckpkg ports")
+
     # overrides package_name
     parser.add_option("--package-name",
                       dest="package_name",
                       default=None,
                       help="override the default package name")
+
+    # uberenv spack tpl build mode
+    parser.add_option("--spack-build-mode",
+                      dest="spack_build_mode",
+                      default=None,
+                      help="set mode used to build third party dependencies with spack"
+                           "(options: 'dev-build' 'uberenv-pkg' 'install' "
+                           "[default: 'dev-build'] )\n")
 
     # controls after which package phase spack should stop
     parser.add_option("--package-final-phase",
@@ -156,6 +178,12 @@ def parse_args():
                       default=pjoin(uberenv_script_dir(),"project.json"),
                       help="uberenv project settings json file")
 
+    # option to explicitly set the number of build jobs
+    parser.add_option("-j",
+                      dest="build_jobs",
+                      default=None,
+                      help="Explicitly set build jobs")
+
     # flag to use insecure curl + git
     parser.add_option("-k",
                       action="store_true",
@@ -163,12 +191,12 @@ def parse_args():
                       default=False,
                       help="Ignore SSL Errors")
 
-    # option to force a spack pull
+    # option to force a pull of the package manager
     parser.add_option("--pull",
                       action="store_true",
-                      dest="spack_pull",
+                      dest="repo_pull",
                       default=False,
-                      help="Pull if spack repo already exists")
+                      help="Pull from package manager, if repo already exists")
 
     # option to force for clean of packages specified to
     # be cleaned in the project.json
@@ -210,20 +238,24 @@ def parse_args():
     # we want a dict b/c the values could
     # be passed without using optparse
     opts = vars(opts)
-    if not opts["spack_config_dir"] is None:
-        opts["spack_config_dir"] = os.path.abspath(opts["spack_config_dir"])
+    if opts["spack_config_dir"] is not None:
+        opts["spack_config_dir"] = pabs(opts["spack_config_dir"])
         if not os.path.isdir(opts["spack_config_dir"]):
-            print("[ERROR: invalid spack config dir: {} ]".format(opts["spack_config_dir"]))
+            print("[ERROR: invalid spack config dir: {0} ]".format(opts["spack_config_dir"]))
             sys.exit(-1)
     # if rel path is given for the mirror, we need to evaluate here -- before any
     # chdirs to avoid confusion related to what it is relative to.
     # (it should be relative to where uberenv is run from, so it matches what you expect
     #  from shell completion, etc)
-    if not opts["mirror"] is None:
+    if opts["mirror"] is not None:
         if not opts["mirror"].startswith("http") and not os.path.isabs(opts["mirror"]):
-            opts["mirror"] = os.path.abspath(opts["mirror"])
+            opts["mirror"] = pabs(opts["mirror"])
     return opts, extras
 
+
+def pretty_print_dictionary(dictionary):
+    for key, value in dictionary.items():
+        print("  {0}: {1}".format(key, value))
 
 def uberenv_script_dir():
     # returns the directory of the uberenv.py script
@@ -239,6 +271,27 @@ def is_darwin():
 def is_windows():
     return "windows" in platform.system().lower()
 
+def find_project_config(opts):
+    project_json_file = opts["project_json"]
+    # Default case: "project.json" seats next to uberenv.py or is given on command line.
+    if os.path.isfile(project_json_file):
+        return project_json_file
+    # Submodule case: Look for ".uberenv_config.json" in current then search parent dirs
+    else:
+        lookup_path = pabs(uberenv_script_dir())
+        end_of_search = False
+        while not end_of_search:
+            if os.path.dirname(lookup_path) == lookup_path:
+                end_of_search = True
+            project_json_file = pjoin(lookup_path,".uberenv_config.json")
+            if os.path.isfile(project_json_file):
+                return project_json_file
+            else:
+                lookup_path = pabs(os.path.join(lookup_path, os.pardir))
+    print("ERROR: No configuration json file found")
+    sys.exit(-1)
+
+
 class UberEnv():
     """ Base class for package manager """
 
@@ -248,29 +301,74 @@ class UberEnv():
 
         # load project settings
         self.project_opts = load_json_file(opts["project_json"])
-        print("[uberenv project settings: {}]".format(str(self.project_opts)))
-        print("[uberenv options: {}]".format(str(self.opts)))
+
+        # setup main package name
+        self.pkg_name = self.set_from_args_or_json("package_name")
+
+        # Set project.json defaults
+        if not "force_commandline_prefix" in self.project_opts:
+            self.project_opts["force_commandline_prefix"] = False
+
+        print("[uberenv project settings: ")
+        pretty_print_dictionary(self.project_opts)
+        print("]")
+
+        print("[uberenv command line options: ")
+        pretty_print_dictionary(self.opts)
+        print("]")
 
     def setup_paths_and_dirs(self):
-        self.uberenv_path = os.path.dirname(os.path.realpath(__file__))
+        self.uberenv_path = uberenv_script_dir()
 
-    def set_from_args_or_json(self,setting):
+        # setup destination paths
+        if not self.opts["prefix"]:
+            if self.project_opts["force_commandline_prefix"]:
+                # project has specified prefix must be on command line
+                print("[ERROR: --prefix flag for library destination is required]")
+                sys.exit(1)
+            # otherwise set default
+            self.opts["prefix"] = "uberenv_libs"
+
+        self.dest_dir = pabs(self.opts["prefix"])
+
+        # print a warning if the dest path already exists
+        if not os.path.isdir(self.dest_dir):
+            os.mkdir(self.dest_dir)
+        else:
+            print("[info: destination '{0}' already exists]".format(self.dest_dir))
+
+    def set_from_args_or_json(self,setting, optional=True):
+        """
+        When optional=False: 
+            If the setting key is not in the json file, error and raise an exception.
+        When optional=True:
+            If the setting key is not in the json file or opts, return None.
+        """
+        setting_value = None
         try:
             setting_value = self.project_opts[setting]
         except (KeyError):
-            print("ERROR: {} must at least be defined in project.json".format(setting))
-            raise
-        else:
-            if self.opts[setting]:
-                setting_value = self.opts[setting]
+            if not optional:
+                print("ERROR: '{0}' must at least be defined in project.json".format(setting))
+                raise
+        if self.opts[setting]:
+            setting_value = self.opts[setting]
         return setting_value
 
-    def set_from_json(self,setting):
+    def set_from_json(self,setting, optional=True):
+        """
+        When optional=False: 
+            If the setting key is not in the json file, error and raise an exception.
+        When optional=True:
+            If the setting key is not in the json file or opts, return None.
+        """
+        setting_value = None
         try:
             setting_value = self.project_opts[setting]
         except (KeyError):
-            print("ERROR: {} must at least be defined in project.json".format(setting))
-            raise
+            if not optional:
+                print("ERROR: '{0}' must at least be defined in project.json".format(setting))
+                raise
         return setting_value
 
     def detect_platform(self):
@@ -284,19 +382,172 @@ class UberEnv():
         return res
 
 
+class VcpkgEnv(UberEnv):
+    """ Helper to clone vcpkg and install libraries on Windows """
+
+    def __init__(self, opts, extra_opts):
+        UberEnv.__init__(self,opts,extra_opts)
+
+        # setup architecture triplet
+        self.vcpkg_triplet = self.set_from_args_or_json("vcpkg_triplet")
+        print("Vcpkg triplet: {}".format(self.vcpkg_triplet))
+        if self.vcpkg_triplet is None:
+           self.vcpkg_triplet = os.getenv("VCPKG_DEFAULT_TRIPLET", "x86-windows")
+
+    def setup_paths_and_dirs(self):
+        # get the current working path, and the glob used to identify the
+        # package files we want to hot-copy to vcpkg
+
+        UberEnv.setup_paths_and_dirs(self)
+
+        # Find path to vcpkg ports
+        _errmsg = ""
+        if self.opts["vcpkg_ports_path"]:
+            # Command line option case
+            self.vcpkg_ports_path = pabs(self.opts["vcpkg_ports_path"])
+            _errmsg = "Given path for command line option `vcpkg-ports-path` does not exist"
+        elif "vcpkg_ports_path" in self.project_opts:
+            # .uberenv_config.json case
+            new_path = self.project_opts["vcpkg_ports_path"]
+            if new_path is not None:
+                self.vcpkg_ports_path = pabs(new_path)
+            _errmsg = "Given path in config file option 'vcpkg_ports_path' does not exist"
+        else:
+            # next to uberenv.py script (backwards compatibility)
+            self.vcpkg_ports_path = pabs(pjoin(self.uberenv_path, "vcpkg_ports"))
+            _errmsg = "Could not find any directory for vcpkg ports. " \
+                      "Use either command line option 'vcpkg-ports-path', " \
+                      "config file option 'vcpkg_ports_path', or " \
+                      "defaulted directory 'vcpkg_ports' next to 'uberenv.py'"
+
+        if not os.path.isdir(self.vcpkg_ports_path):
+            print("[ERROR: {0}: {1}]".format(_errmsg, self.vcpkg_ports_path))
+            sys.exit(1)
+
+        # setup path for vcpkg repo
+        print("[installing to: {0}]".format(self.dest_dir))
+        self.dest_vcpkg = pjoin(self.dest_dir,"vcpkg")
+
+        if os.path.isdir(self.dest_vcpkg):
+            print("[info: destination '{0}' already exists]".format(self.dest_vcpkg))
+
+    def clone_repo(self):
+        if not os.path.isdir(self.dest_vcpkg):
+            # compose clone command for the dest path, vcpkg url and branch
+            vcpkg_branch = self.project_opts.get("vcpkg_branch", "master")
+            vcpkg_url = self.project_opts.get("vcpkg_url", "https://github.com/microsoft/vcpkg")
+
+            print("[info: cloning vcpkg '{0}' branch from {1} into {2}]"
+                .format(vcpkg_branch,vcpkg_url, self.dest_vcpkg))
+
+            os.chdir(self.dest_dir)
+
+            clone_opts = ("-c http.sslVerify=false " 
+                          if self.opts["ignore_ssl_errors"] else "")
+
+            clone_cmd =  "git {0} clone --single-branch -b {1} {2} vcpkg".format(clone_opts, vcpkg_branch,vcpkg_url)
+            sexe(clone_cmd, echo=True)
+
+            # optionally, check out a specific commit
+            if "vcpkg_commit" in self.project_opts:
+                sha1 = self.project_opts["vcpkg_commit"]
+                print("[info: using vcpkg commit {0}]".format(sha1))
+                os.chdir(self.dest_vcpkg)
+                sexe("git checkout {0}".format(sha1),echo=True)
+                
+        if self.opts["repo_pull"]:
+            # do a pull to make sure we have the latest
+            os.chdir(self.dest_vcpkg)
+            sexe("git stash", echo=True)
+            res = sexe("git pull", echo=True)
+            if res != 0:
+                #Usually untracked files that would be overwritten
+                print("[ERROR: Git failed to pull]")
+                sys.exit(-1)
+
+
+        # Bootstrap vcpkg
+        os.chdir(self.dest_vcpkg)
+        print("[info: bootstrapping vcpkg]")
+        sexe("bootstrap-vcpkg.bat -disableMetrics")
+
+    def patch(self):
+        """ hot-copy our ports into vcpkg """
+        
+        import distutils.dir_util
+
+        dest_vcpkg_ports = pjoin(self.dest_vcpkg, "ports")
+
+        print("[info: copying from {0} to {1}]".format(self.vcpkg_ports_path, dest_vcpkg_ports))
+        distutils.dir_util.copy_tree(self.vcpkg_ports_path, dest_vcpkg_ports)
+
+
+    def clean_build(self):
+        pass
+
+    def show_info(self):
+        os.chdir(self.dest_vcpkg)
+        print("[info: Details for package '{0}']".format(self.pkg_name))
+        sexe("vcpkg.exe search " + self.pkg_name, echo=True)
+
+        print("[info: Dependencies for package '{0}']".format(self.pkg_name))
+        sexe("vcpkg.exe depend-info " + self.pkg_name, echo=True)
+
+    def create_mirror(self):
+        pass
+
+    def use_mirror(self):
+        pass
+
+    def install(self):
+        
+        os.chdir(self.dest_vcpkg)
+        install_cmd = "vcpkg.exe "
+        install_cmd += "install {0}:{1}".format(self.pkg_name, self.vcpkg_triplet)
+
+        res = sexe(install_cmd, echo=True)
+
+        # Running the install_cmd eventually generates the host config file,
+        # which we copy to the target directory.
+        src_hc = pjoin(self.dest_vcpkg, "installed", self.vcpkg_triplet, "include", self.pkg_name, "hc.cmake")
+        hcfg_fname = pjoin(self.dest_dir, "{0}.{1}.cmake".format(platform.uname()[1], self.vcpkg_triplet))
+        print("[info: copying host config file to {0}]".format(hcfg_fname))
+        shutil.copy(os.path.abspath(src_hc), hcfg_fname)
+        print("")
+        print("[install complete!]")
+        return res
+
+
 class SpackEnv(UberEnv):
     """ Helper to clone spack and install libraries on MacOS an Linux """
 
     def __init__(self, opts, extra_opts):
         UberEnv.__init__(self,opts,extra_opts)
-
-        self.pkg_name = self.set_from_args_or_json("package_name")
         self.pkg_version = self.set_from_json("package_version")
-        self.pkg_final_phase = self.set_from_args_or_json("package_final_phase")
-        self.pkg_src_dir = self.set_from_args_or_json("package_source_dir")
+        self.pkg_src_dir = self.set_from_args_or_json("package_source_dir", True)
+        self.pkg_final_phase = self.set_from_args_or_json("package_final_phase",True)
+        # get build mode
+        self.build_mode = self.set_from_args_or_json("spack_build_mode",True)
+        # default spack build mode is dev-build
+        if self.build_mode is None:
+            self.build_mode = "dev-build"
+        # NOTE: install always overrides the build mode to "install"
+        if self.opts["install"]:
+            self.build_mode = "install"
+        # if we are using fake package mode, adjust the pkg name
+        if self.build_mode == "uberenv-pkg":
+            self.pkg_name =  "uberenv-" + self.pkg_name
 
+        print("[uberenv spack build mode: {0}]".format(self.build_mode))
+        self.packages_paths = []
         self.spec_hash = ""
         self.use_install = False
+  
+        if "spack_concretizer" in self.project_opts and self.project_opts["spack_concretizer"] == "clingo":
+            self.use_clingo = True
+            self.setup_clingo()
+        else:
+            self.use_clingo = False
 
         # Some additional setup for macos
         if is_darwin():
@@ -309,16 +560,36 @@ class SpackEnv(UberEnv):
         # setup default spec
         if opts["spec"] is None:
             if is_darwin():
-                opts["spec"] = "%clang"
+                # Note: newer spack, for macOS we need to use `apple-clang`
+                opts["spec"] = "%apple-clang"
             else:
                 opts["spec"] = "%gcc"
-            self.opts["spec"] = "@{}{}".format(self.pkg_version,opts["spec"])
+            self.opts["spec"] = "@{0}{1}".format(self.pkg_version,opts["spec"])
         elif not opts["spec"].startswith("@"):
-            self.opts["spec"] = "@{}{}".format(self.pkg_version,opts["spec"])
+            self.opts["spec"] = "@{0}{1}".format(self.pkg_version,opts["spec"])
         else:
-            self.opts["spec"] = "{}".format(opts["spec"])
+            self.opts["spec"] = "{0}".format(opts["spec"])
 
-        print("[spack spec: {}]".format(self.opts["spec"]))
+        print("[spack spec: {0}]".format(self.opts["spec"]))
+
+    def print_spack_python_info(self):
+        spack_dir = self.dest_spack
+        cmd = pjoin(spack_dir,"bin","spack")
+        cmd += " python "
+        cmd += '-c "import sys; print(sys.executable);"'
+        res, out = sexe( cmd, ret_output = True)
+        print("[spack python: {0}]".format(out.strip()))
+
+    def append_path_to_packages_paths(self, path, errorOnNonexistant=True):
+        path = pabs(path)
+        if not os.path.exists(path):
+            if errorOnNonexistant:
+                print("[ERROR: Given path in 'spack_packages_path' does not exist: {0}]".format(path))
+                sys.exit(1)
+            else:
+                return
+        self.packages_paths.append(path)
+
 
     def setup_paths_and_dirs(self):
         # get the current working path, and the glob used to identify the
@@ -326,34 +597,62 @@ class SpackEnv(UberEnv):
 
         UberEnv.setup_paths_and_dirs(self)
 
-        self.pkgs = pjoin(self.uberenv_path, "packages","*")
+        # Find Spack yaml configs path (compilers.yaml, packages.yaml, etc.)
 
-        # setup destination paths
-        self.dest_dir = os.path.abspath(self.opts["prefix"])
-        self.dest_spack = pjoin(self.dest_dir,"spack")
+        # Next to uberenv.py (backwards compatility)
+        spack_configs_path = pabs(pjoin(self.uberenv_path,"spack_configs"))
+
+        # In project config file
+        if "spack_configs_path" in self.project_opts.keys():
+            new_path = self.project_opts["spack_configs_path"]
+            if new_path is not None:
+                spack_configs_path = pabs(new_path)
+                if not os.path.isdir(spack_configs_path):
+                    print("[ERROR: Given path in 'spack_configs_path' does not exist: {0}]".format(spack_configs_path))
+                    sys.exit(1)
+
+        # Test if the override option was used (--spack-config-dir)
+        self.spack_config_dir = self.opts["spack_config_dir"]
+        if self.spack_config_dir is None:
+            # If command line option is not used, search for platform under
+            # given directory
+            uberenv_plat = self.detect_platform()
+            if uberenv_plat is not None:
+                self.spack_config_dir = pabs(pjoin(spack_configs_path,uberenv_plat))
+
+        # Find project level packages to override spack's internal packages
+        if "spack_packages_path" in self.project_opts.keys():
+            # packages directories listed in project.json
+            _paths = self.project_opts["spack_packages_path"]
+            if not isinstance(_paths, list):
+                # user gave a single string
+                self.append_path_to_packages_paths(_paths)
+            else:
+                # user gave a list of strings
+                for _path in _paths:
+                    self.append_path_to_packages_paths(_path)
+        else:
+            # default to packages living next to uberenv script if it exists
+            self.append_path_to_packages_paths(pjoin(self.uberenv_path,"packages"), errorOnNonexistant=False)
+
         print("[installing to: {0}]".format(self.dest_dir))
 
-        # print a warning if the dest path already exists
-        if not os.path.isdir(self.dest_dir):
-            os.mkdir(self.dest_dir)
-        else:
-            print("[info: destination '{}' already exists]".format(self.dest_dir))
-
+        self.dest_spack = pjoin(self.dest_dir,"spack")
         if os.path.isdir(self.dest_spack):
-            print("[info: destination '{}' already exists]".format(self.dest_spack))
+            print("[info: destination '{0}' already exists]".format(self.dest_spack))
 
-        self.pkg_src_dir = os.path.join(self.uberenv_path,self.pkg_src_dir)
-        if not os.path.isdir(self.pkg_src_dir):
-            print("[ERROR: package_source_dir '{}' does not exist]".format(self.pkg_src_dir))
-            sys.exit(-1)
-
+        if self.build_mode == "dev-build":
+            self.pkg_src_dir = os.path.abspath(os.path.join(self.uberenv_path,self.pkg_src_dir))
+            if not os.path.isdir(self.pkg_src_dir):
+                print("[ERROR: package_source_dir '{0}' does not exist]".format(self.pkg_src_dir))
+                sys.exit(-1)
 
     def find_spack_pkg_path_from_hash(self, pkg_name, pkg_hash):
-        res, out = sexe("spack/bin/spack find -p /{}".format(pkg_hash), ret_output = True)
+        res, out = sexe("spack/bin/spack find -p /{0}".format(pkg_hash), ret_output = True)
         for l in out.split("\n"):
             if l.startswith(pkg_name):
                    return {"name": pkg_name, "path": l.split()[-1]}
-        print("[ERROR: failed to find package named '{}']".format(pkg_name))
+        print("[ERROR: failed to find package named '{0}']".format(pkg_name))
         sys.exit(-1)
 
     def find_spack_pkg_path(self, pkg_name, spec = ""):
@@ -363,7 +662,7 @@ class SpackEnv(UberEnv):
             # pick the first in the list.
             if l.startswith(pkg_name):
                    return {"name": pkg_name, "path": l.split()[-1]}
-        print("[ERROR: failed to find package named '{}']".format(pkg_name))
+        print("[ERROR: failed to find package named '{0}']".format(pkg_name))
         sys.exit(-1)
 
     # Extract the first line of the full spec
@@ -387,7 +686,7 @@ class SpackEnv(UberEnv):
             spack_url = self.project_opts.get("spack_url", "https://github.com/spack/spack.git")
             spack_branch = self.project_opts.get("spack_branch", "develop")
 
-            clone_cmd =  "git {0} clone --single-branch --depth=1 -b {1} {2}".format(clone_opts, spack_branch,spack_url)
+            clone_cmd =  "git {0} clone --single-branch --depth=1 -b {1} {2} spack".format(clone_opts, spack_branch, spack_url)
             sexe(clone_cmd, echo=True)
 
         if "spack_commit" in self.project_opts:
@@ -396,100 +695,132 @@ class SpackEnv(UberEnv):
             sha1 = self.project_opts["spack_commit"]
             res, current_sha1 = sexe("git log -1 --pretty=%H", ret_output=True)
             if sha1 != current_sha1:
-                print("[info: using spack commit {}]".format(sha1))
+                print("[info: using spack commit {0}]".format(sha1))
                 sexe("git stash", echo=True)
                 sexe("git fetch --depth=1 origin {0}".format(sha1),echo=True)
-                sexe("git checkout {0}".format(sha1),echo=True)
+                res = sexe("git checkout {0}".format(sha1),echo=True)
+                if res != 0:
+                    # Usually untracked files that would be overwritten
+                    print("[ERROR: Git failed to checkout]")
+                    sys.exit(-1)
 
-        if self.opts["spack_pull"]:
+        if self.opts["repo_pull"]:
             # do a pull to make sure we have the latest
             os.chdir(pjoin(self.dest_dir,"spack"))
             sexe("git stash", echo=True)
-            sexe("git pull", echo=True)
-
-    def config_dir(self):
-        """ path to compilers.yaml, which we will use for spack's compiler setup"""
-        spack_config_dir = self.opts["spack_config_dir"]
-        if spack_config_dir is None:
-            uberenv_plat = self.detect_platform()
-            if not uberenv_plat is None:
-                spack_config_dir = os.path.abspath(pjoin(self.uberenv_path,"spack_configs",uberenv_plat))
-        return spack_config_dir
-
+            res = sexe("git pull", echo=True)
+            if res != 0:
+                #Usually untracked files that would be overwritten
+                print("[ERROR: Git failed to pull]")
+                sys.exit(-1)
 
     def disable_spack_config_scopes(self,spack_dir):
         # disables all config scopes except "defaults", which we will
         # force our settings into
         spack_lib_config = pjoin(spack_dir,"lib","spack","spack","config.py")
-        print("[disabling config scope (except defaults) in: {}]".format(spack_lib_config))
+        print("[disabling config scope (except defaults) in: {0}]".format(spack_lib_config))
         cfg_script = open(spack_lib_config).read()
-        for cfg_scope_stmt in ["('system', os.path.join(spack.paths.system_etc_path, 'spack')),",
-                            "('site', os.path.join(spack.paths.etc_path, 'spack')),",
-                            "('user', spack.paths.user_config_path)"]:
-            cfg_script = cfg_script.replace(cfg_scope_stmt,
-                                            "#DISABLED BY UBERENV: " + cfg_scope_stmt)
+        #
+        # For newer versions of spack, we can use the SPACK_DISABLE_LOCAL_CONFIG
+        # env var plumbing. We patch it to True to make a permanent change.
+        #
+        # Note: This path does not disable the 'site' config, but disabling 'user' config
+        # is our primary goal.
+        #
+        spack_disable_env_stmt = 'disable_local_config = "SPACK_DISABLE_LOCAL_CONFIG" in os.environ'
+        spack_disable_env_stmt_perm = "disable_local_config = True"
+        if cfg_script.count(spack_disable_env_stmt) > 0:
+            cfg_script = cfg_script.replace(spack_disable_env_stmt,
+                                            spack_disable_env_stmt_perm)
+        # path for older versions of spack
+        elif cfg_script.count(spack_disable_env_stmt_perm) == 0:
+            for cfg_scope_stmt in ["('system', os.path.join(spack.paths.system_etc_path, 'spack')),",
+                                "('site', os.path.join(spack.paths.etc_path, 'spack')),",
+                                "('user', spack.paths.user_config_path)"]:
+                cfg_script = cfg_script.replace(cfg_scope_stmt,
+                                                "#DISABLED BY UBERENV: " + cfg_scope_stmt)
         open(spack_lib_config,"w").write(cfg_script)
 
 
     def patch(self):
 
-        cfg_dir = self.config_dir()
+        cfg_dir = self.spack_config_dir
         spack_dir = self.dest_spack
+
+        # this is an opportunity to show spack python info post obtaining spack
+        self.print_spack_python_info()
 
         # force spack to use only "defaults" config scope
         self.disable_spack_config_scopes(spack_dir)
         spack_etc_defaults_dir = pjoin(spack_dir,"etc","spack","defaults")
 
-        # copy in "defaults" config.yaml
-        config_yaml = os.path.abspath(pjoin(self.uberenv_path,"spack_configs","config.yaml"))
-        sexe("cp {} {}/".format(config_yaml, spack_etc_defaults_dir ), echo=True)
+        if cfg_dir is not None:
+            # copy in "defaults" config.yaml
+            config_yaml = pabs(pjoin(cfg_dir,"..","config.yaml"))
+            if os.path.isfile(config_yaml):
+                sexe("cp {0} {1}/".format(config_yaml, spack_etc_defaults_dir), echo=True)
+            mirrors_yaml = pabs(pjoin(cfg_dir,"..","mirrors.yaml"))
+            if os.path.isfile(mirrors_yaml):
+                sexe("cp {0} {1}/".format(mirrors_yaml, spack_etc_defaults_dir), echo=True)
 
-        # copy in other settings per platform
-        if not cfg_dir is None:
+            # copy in other settings per platform
             print("[copying uberenv compiler and packages settings from {0}]".format(cfg_dir))
 
             config_yaml    = pjoin(cfg_dir,"config.yaml")
+            mirrors_yaml   = pjoin(cfg_dir,"mirrors.yaml")
             compilers_yaml = pjoin(cfg_dir,"compilers.yaml")
             packages_yaml  = pjoin(cfg_dir,"packages.yaml")
 
             if os.path.isfile(config_yaml):
-                sexe("cp {} {}/".format(config_yaml , spack_etc_defaults_dir ), echo=True)
+                sexe("cp {0} {1}/".format(config_yaml , spack_etc_defaults_dir ), echo=True)
+
+            if os.path.isfile(mirrors_yaml):
+                sexe("cp {0} {1}/".format(mirrors_yaml , spack_etc_defaults_dir ), echo=True)
 
             if os.path.isfile(compilers_yaml):
-                sexe("cp {} {}/".format(compilers_yaml, spack_etc_defaults_dir ), echo=True)
+                sexe("cp {0} {1}/".format(compilers_yaml, spack_etc_defaults_dir ), echo=True)
 
             if os.path.isfile(packages_yaml):
-                sexe("cp {} {}/".format(packages_yaml, spack_etc_defaults_dir ), echo=True)
+                sexe("cp {0} {1}/".format(packages_yaml, spack_etc_defaults_dir ), echo=True)
         else:
             # let spack try to auto find compilers
             sexe("spack/bin/spack compiler find", echo=True)
 
         # hot-copy our packages into spack
-        if self.pkgs:
+        if len(self.packages_paths) > 0:
             dest_spack_pkgs = pjoin(spack_dir,"var","spack","repos","builtin","packages")
-            print("[copying patched packages from {0}]".format(self.pkgs))
-            sexe("cp -Rf {} {}".format(self.pkgs,dest_spack_pkgs))
+            for _base_path in self.packages_paths:
+                _src_glob = pjoin(_base_path, "*")
+                print("[copying patched packages from {0}]".format(_src_glob))
+                sexe("cp -Rf {0} {1}".format(_src_glob, dest_spack_pkgs))
+
+        # Update spack's config.yaml if clingo was requested
+        if self.use_clingo:
+            concretizer_cmd = "spack/bin/spack config --scope defaults add config:concretizer:clingo"
+            res = sexe(concretizer_cmd, echo=True)
+            if res != 0:
+                print("[ERROR: Failed to update spack configuration to use new concretizer]")
+                sys.exit(-1)
+
 
 
     def clean_build(self):
-        # clean out any temporary spack build stages
-        cln_cmd = "spack/bin/spack clean "
-        res = sexe(cln_cmd, echo=True)
-
-        # clean out any spack cached stuff
-        cln_cmd = "spack/bin/spack clean --all"
+        # clean out any spack cached stuff (except build stages, downloads, &
+        # spack's bootstrapping software)
+        cln_cmd = "spack/bin/spack clean --misc-cache --failures --python-cache"
         res = sexe(cln_cmd, echo=True)
 
         # check if we need to force uninstall of selected packages
         if self.opts["spack_clean"]:
             if self.project_opts.has_key("spack_clean_packages"):
                 for cln_pkg in self.project_opts["spack_clean_packages"]:
-                    if not self.find_spack_pkg_path(cln_pkg) is None:
+                    if self.find_spack_pkg_path(cln_pkg) is not None:
                         unist_cmd = "spack/bin/spack uninstall -f -y --all --dependents " + cln_pkg
                         res = sexe(unist_cmd, echo=True)
 
     def show_info(self):
-        # prints install status and 32 characters hash
+        # print concretized spec with install info
+        # default case prints install status and 32 characters hash
         options="--install-status --very-long"
         spec_cmd = "spack/bin/spack spec {0} {1}{2}".format(options,self.pkg_name,self.opts["spec"])
 
@@ -509,7 +840,7 @@ class SpackEnv(UberEnv):
                     # testing that the path exists is mandatory until Spack team fixes
                     # https://github.com/spack/spack/issues/16329
                     if os.path.isdir(install_path):
-                        print("[Warning: {} {} has already been installed in {}]".format(self.pkg_name, self.opts["spec"],install_path))
+                        print("[Warning: {0} {1} has already been installed in {2}]".format(self.pkg_name, self.opts["spec"],install_path))
                         print("[Warning: Uberenv will proceed using this directory]".format(self.pkg_name))
                         self.use_install = True
 
@@ -518,20 +849,34 @@ class SpackEnv(UberEnv):
     def install(self):
         # use the uberenv package to trigger the right builds
         # and build an host-config.cmake file
-
         if not self.use_install:
             install_cmd = "spack/bin/spack "
             if self.opts["ignore_ssl_errors"]:
                 install_cmd += "-k "
-            if not self.opts["install"]:
-                install_cmd += "dev-build --quiet -d {} -u {} ".format(self.pkg_src_dir,self.pkg_final_phase)
-            else:
+            # build mode -- install path
+            if self.build_mode == "install":
                 install_cmd += "install "
                 if self.opts["run_tests"]:
                     install_cmd += "--test=root "
+            # build mode - dev build path
+            elif self.build_mode == "dev-build":
+                # dev build path
+                install_cmd += "dev-build --quiet -d {0} ".format(self.pkg_src_dir)
+                if self.pkg_final_phase:
+                    install_cmd += "-u {0} ".format(self.pkg_final_phase)
+            # build mode -- original fake package path
+            elif self.build_mode == "uberenv-pkg":
+                install_cmd += "install "
+                if self.pkg_final_phase:
+                    install_cmd += "-u {0} ".format(self.pkg_final_phase)
+            else:
+                print("[ERROR: unsupported build mode: {0}]".format(self.build_mode))
+                return -1
+            if self.opts["build_jobs"]:
+                install_cmd += "-j {0} ".format(self.opts["build_jobs"])
+            # for all cases we use the pkg name and spec
             install_cmd += self.pkg_name + self.opts["spec"]
             res = sexe(install_cmd, echo=True)
-
             if res != 0:
                 print("[ERROR: failure of spack install/dev-build]")
                 return res
@@ -550,18 +895,26 @@ class SpackEnv(UberEnv):
                         break
                 if activate:
                     activate_cmd = "spack/bin/spack activate " + pkg_name
-                    sexe(activate_cmd, echo=True)
+                    res = sexe(activate_cmd, echo=True)
+                    if res != 0:
+                      return res
+            print("[done activating dependent packages]")
         # note: this assumes package extends python when +python
         # this may fail general cases
-        if self.opts["install"] and "+python" in full_spec:
+        if self.build_mode == "install" and "+python" in full_spec:
             activate_cmd = "spack/bin/spack activate /" + self.spec_hash
-            sexe(activate_cmd, echo=True)
-        # if user opt'd for an install, we want to symlink the final
-        # install to an easy place:
-        if self.opts["install"] or self.use_install:
+            res = sexe(activate_cmd, echo=True)
+            if res != 0:
+              return res
+        # when using install or uberenv-pkg mode, create a symlink to the host config 
+        if self.build_mode == "install" or \
+           self.build_mode == "uberenv-pkg" \
+           or self.use_install:
+            # use spec_hash to locate b/c other helper won't work if complex
+            # deps are provided in the spec (e.g: @ver+variant ^package+variant)
             pkg_path = self.find_spack_pkg_path_from_hash(self.pkg_name, self.spec_hash)
             if self.pkg_name != pkg_path["name"]:
-                print("[ERROR: Could not find install of {}]".format(self.pkg_name))
+                print("[ERROR: Could not find install of {0} with hash {1}]".format(self.pkg_name,self.spec_hash))
                 return -1
             else:
                 # Symlink host-config file
@@ -572,35 +925,41 @@ class SpackEnv(UberEnv):
                     if os.path.islink(hc_fname):
                         os.unlink(hc_fname)
                     elif os.path.isfile(hc_fname):
-                        sexe("rm -f {}".format(hc_fname))
-                    print("[symlinking host config file to {}]".format(pjoin(self.dest_dir,hc_fname)))
+                        sexe("rm -f {0}".format(hc_fname))
+                    print("[symlinking host config file to {0}]".format(pjoin(self.dest_dir,hc_fname)))
                     os.symlink(hc_path,hc_fname)
-
+                # if user opt'd for an install, we want to symlink the final
+                # install to an easy place:
                 # Symlink install directory
-                if self.opts["install"]:
-                    pkg_lnk_dir = "{}-install".format(self.pkg_name)
+                if self.build_mode == "install":
+                    pkg_lnk_dir = "{0}-install".format(self.pkg_name)
                     if os.path.islink(pkg_lnk_dir):
                         os.unlink(pkg_lnk_dir)
                     print("")
-                    print("[symlinking install to {}]".format(pjoin(self.dest_dir,pkg_lnk_dir)))
-                    os.symlink(pkg_path["path"],os.path.abspath(pkg_lnk_dir))
+                    print("[symlinking install to {0}]".format(pjoin(self.dest_dir,pkg_lnk_dir)))
+                    os.symlink(pkg_path["path"],pabs(pkg_lnk_dir))
                     print("")
                     print("[install complete!]")
-        # otherwise we are in the "only dependencies" case and the host-config
-        # file has to be copied from the do-be-deleted spack-build dir.
+        elif self.build_mode == "dev-build":
+                # we are in the "only dependencies" dev build case and the host-config
+                # file has to be copied from the do-be-deleted spack-build dir.
+                build_base = pjoin(self.dest_dir,"{0}-build".format(self.pkg_name))
+                build_dir  = pjoin(build_base,"spack-build")
+                pattern = "*{0}.cmake".format(self.pkg_name)
+                build_dir = pjoin(self.pkg_src_dir,"spack-build")
+                hc_glob = glob.glob(pjoin(build_dir,pattern))
+                if len(hc_glob) > 0:
+                    hc_path  = hc_glob[0]
+                    hc_fname = os.path.split(hc_path)[1]
+                    if os.path.islink(hc_fname):
+                        os.unlink(hc_fname)
+                    print("[copying host config file to {0}]".format(pjoin(self.dest_dir,hc_fname)))
+                    sexe("cp {0} {1}".format(hc_path,hc_fname))
+                    print("[removing project build directory {0}]".format(pjoin(build_dir)))
+                    sexe("rm -rf {0}".format(build_dir))
         else:
-            pattern = "*{}.cmake".format(self.pkg_name)
-            build_dir = pjoin(self.pkg_src_dir,"spack-build")
-            hc_glob = glob.glob(pjoin(build_dir,pattern))
-            if len(hc_glob) > 0:
-                hc_path  = hc_glob[0]
-                hc_fname = os.path.split(hc_path)[1]
-                if os.path.islink(hc_fname):
-                    os.unlink(hc_fname)
-                print("[copying host config file to {}]".format(pjoin(self.dest_dir,hc_fname)))
-                sexe("cp {} {}".format(hc_path,hc_fname))
-                print("[removing project build directory {}]".format(pjoin(build_dir)))
-                sexe("rm -rf {}".format(build_dir))
+            print("[ERROR: Unsupported build mode {0}]".format(self.build_mode))
+            return -1
 
     def get_mirror_path(self):
         mirror_path = self.opts["mirror"]
@@ -619,7 +978,7 @@ class SpackEnv(UberEnv):
         mirror_cmd = "spack/bin/spack "
         if self.opts["ignore_ssl_errors"]:
             mirror_cmd += "-k "
-        mirror_cmd += "mirror create -d {} --dependencies {}{}".format(mirror_path,
+        mirror_cmd += "mirror create -d {0} --dependencies {1}{2}".format(mirror_path,
                                                                     self.pkg_name,
                                                                     self.opts["spec"])
         return sexe(mirror_cmd, echo=True)
@@ -648,20 +1007,20 @@ class SpackEnv(UberEnv):
 
         if existing_mirror_path and mirror_path != existing_mirror_path:
             # Existing mirror has different URL, error out
-            print("[removing existing spack mirror `{}` @ {}]".format(mirror_name,
-                                                                    existing_mirror_path))
+            print("[removing existing spack mirror `{0}` @ {1}]".format(mirror_name,
+                                                                        existing_mirror_path))
             #
             # Note: In this case, spack says it removes the mirror, but we still
             # get errors when we try to add a new one, sounds like a bug
             #
-            sexe("spack/bin/spack mirror remove --scope=defaults {} ".format(mirror_name),
+            sexe("spack/bin/spack mirror remove --scope=defaults {0} ".format(mirror_name),
                 echo=True)
             existing_mirror_path = None
         if not existing_mirror_path:
             # Add if not already there
-            sexe("spack/bin/spack mirror add --scope=defaults {} {}".format(
+            sexe("spack/bin/spack mirror add --scope=defaults {0} {1}".format(
                     mirror_name, mirror_path), echo=True)
-            print("[using mirror {}]".format(mirror_path))
+            print("[using mirror {0}]".format(mirror_path))
 
     def find_spack_upstream(self, upstream_name):
         """
@@ -693,17 +1052,53 @@ class SpackEnv(UberEnv):
         if not upstream_path:
             print("[--create-upstream requires a upstream directory]")
             sys.exit(-1)
-        upstream_path = os.path.abspath(upstream_path)
+        upstream_path = pabs(upstream_path)
         upstream_name = self.pkg_name
         existing_upstream_path = self.find_spack_upstream(upstream_name)
-        if (not existing_upstream_path) or (upstream_path != os.path.abspath(existing_upstream_path)):
+        if (not existing_upstream_path) or (upstream_path != pabs(existing_upstream_path)):
             # Existing upstream has different URL, error out
             print("[removing existing spack upstream configuration file]")
             sexe("rm spack/etc/spack/defaults/upstreams.yaml")
             with open('spack/etc/spack/defaults/upstreams.yaml','w+') as upstreams_cfg_file:
                 upstreams_cfg_file.write("upstreams:\n")
-                upstreams_cfg_file.write("  {}:\n".format(upstream_name))
-                upstreams_cfg_file.write("    install_tree: {}\n".format(upstream_path))
+                upstreams_cfg_file.write("  {0}:\n".format(upstream_name))
+                upstreams_cfg_file.write("    install_tree: {0}\n".format(upstream_path))
+
+    def setup_clingo(self):
+        """
+        Attempts to install the clingo answer set programming library
+        if it is not already available as a Python module
+        """
+        try:
+            import clingo
+        except ImportError:
+            import pip
+            pip_ver = pip.__version__
+            # Requirement comes from https://github.com/pypa/manylinux
+            # JBE: I think the string comparison is somewhat correct here, if not we'll
+            # need to install setuptools for 'packaging.version'
+            if pip_ver < "19.3":
+                print("[!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print("  ERROR: pip version {0} is too old to install clingo".format(pip_ver))
+                print("  pip 19.3 is required for PEP 599 support")
+                print("  Try running the following command to upgrade pip:")
+                print("     python3 -m pip install --user --upgrade pip")
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!]")
+                sys.exit(1)
+            py_interp = sys.executable
+            clingo_pkg = "clingo"
+            uninstall_cmd = "{0} -m pip uninstall -y {1}".format(py_interp, clingo_pkg)
+            # Uninstall it first in case the available version failed due to differing arch
+            # pip will still return 0 in the case of a "trivial" uninstall
+            res = sexe(uninstall_cmd, echo=True)
+            if res != 0:
+                print("[ERROR: clingo uninstall failed with returncode {0}]".format(res))
+                sys.exit(1)
+            install_cmd = "{0} -m pip install --user {1}".format(py_interp, clingo_pkg)
+            res = sexe(install_cmd, echo=True)
+            if res != 0:
+                print("[ERROR: clingo install failed with returncode {0}]".format(res))
+                sys.exit(1)
 
 
 def find_osx_sdks():
@@ -743,9 +1138,12 @@ def setup_osx_sdk_env_vars():
 
     env["MACOSX_DEPLOYMENT_TARGET"] = dep_tgt
     env["SDKROOT"] = sdk_root
-    print("[setting MACOSX_DEPLOYMENT_TARGET to {}]".format(env["MACOSX_DEPLOYMENT_TARGET"]))
-    print("[setting SDKROOT to {}]".format(env[ "SDKROOT"]))
+    print("[setting MACOSX_DEPLOYMENT_TARGET to {0}]".format(env["MACOSX_DEPLOYMENT_TARGET"]))
+    print("[setting SDKROOT to {0}]".format(env[ "SDKROOT"]))
 
+
+def print_uberenv_python_info():
+    print("[uberenv python: {0}]".format(sys.executable))
 
 
 def main():
@@ -754,11 +1152,16 @@ def main():
     Also creates a host-config.cmake file that can be used by our project.
     """
 
+    print_uberenv_python_info()
+
     # parse args from command line
     opts, extra_opts = parse_args()
 
-    # Initialize the environment
-    env = SpackEnv(opts, extra_opts)
+    # project options
+    opts["project_json"] = find_project_config(opts)
+
+    # Initialize the environment -- use vcpkg on windows, spack otherwise
+    env = SpackEnv(opts, extra_opts) if not is_windows() else VcpkgEnv(opts, extra_opts)
 
     # Setup the necessary paths and directories
     env.setup_paths_and_dirs()
@@ -782,23 +1185,23 @@ def main():
     env.show_info()
 
 
-    ##########################################################
-    # we now have an instance of spack configured how we
-    # need it to build our tpls at this point there are two
-    # possible next steps:
+    ###########################################################
+    # we now have an instance of our package manager configured
+    # how we need it to build our tpls. At this point there are
+    # two possible next steps:
     #
     # *) create a mirror of the packages
     #   OR
     # *) build
     #
-    ##########################################################
+    ###########################################################
     if opts["create_mirror"]:
         return env.create_mirror()
     else:
-        if not opts["mirror"] is None:
+        if opts["mirror"] is not None:
             env.use_mirror()
 
-        if not opts["upstream"] is None:
+        if opts["upstream"] is not None:
             env.use_spack_upstream()
 
         res = env.install()
@@ -807,5 +1210,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
