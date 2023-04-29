@@ -3,7 +3,7 @@ packages:
     # This defaults us to machine specific flags of ivybridge which allows
     # us to run on broadwell as well
     target: [ppc64le]
-    compiler: [gcc, pgi, clang, xl]
+    compiler: [gcc, xl]
     providers:
       blas: [netlib-lapack]
       lapack: [netlib-lapack]
@@ -25,40 +25,24 @@ packages:
 
   cuda:
     buildable: false
-    version: [11.1.1, 11.0.2, 10.1.243, 10.1.168, 9.2.148, 8.0]
+    version: [11.8.0, 11.1.1, 10.1.243]
     externals:
+    - spec: cuda@11.8.0
+      prefix: /usr/tce/packages/cuda/cuda-11.8.0
     - spec: cuda@11.1.1
       prefix: /usr/tce/packages/cuda/cuda-11.1.1
-    - spec: cuda@11.0.2
-      prefix: /usr/tce/packages/cuda/cuda-11.0.2
     - spec: cuda@10.1.243
       prefix: /usr/tce/packages/cuda/cuda-10.1.243
-    - spec: cuda@10.1.168
-      prefix: /usr/tce/packages/cuda/cuda-10.1.168
-    - spec: cuda@9.2.148
-      prefix: /usr/tce/packages/cuda/cuda-9.2.148
-    - spec: cuda@8.0
-      prefix: /usr/tce/packages/cuda/cuda-8.0
 
   # Lock down which MPI we are using
   mpi:
     buildable: false
   spectrum-mpi:
     externals:
-    - spec: spectrum-mpi@10.3.1.03rtm0%pgi@19.7
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-pgi-19.7
-    - spec: spectrum-mpi@10.3.1.03rtm0%pgi@20.4
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-pgi-20.4
     - spec: spectrum-mpi@10.3.1.03rtm0%gcc@8.3.1
       prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-gcc-8.3.1
-    - spec: spectrum-mpi@10.3.1.03rtm0%gcc@4.9.3
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-gcc-4.9.3
-    - spec: spectrum-mpi@10.3.1.03rtm0%clang@9.0.0
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-clang-9.0.0
-    - spec: spectrum-mpi@10.3.1.03rtm0%clang@10.0.1ibm
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-clang-ibm-10.0.1
-    - spec: spectrum-mpi@10.3.1.03rtm0%xl@16.1.1.8
-      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-xl-2020.09.17
+    - spec: spectrum-mpi@10.3.1.03rtm0%xl@16.1.1.12
+      prefix: /usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-xl-2022.08.19
 
   # blas is a bit more complicated because its a virtual package so fake it with
   # the following per spack docs
@@ -69,10 +53,10 @@ packages:
 
   netlib-lapack:
     buildable: false
-    version: [3.9.0]
+    version: [3.10.0]
     externals:
-    - spec: netlib-lapack@3.9.0
-      prefix: /usr/tcetmp/packages/lapack/lapack-3.9.0-P9-xl-2020.03.18
+    - spec: netlib-lapack@3.10.0
+      prefix: /usr/tcetmp/packages/lapack/lapack-3.10.0-xl-2022.03.10
 
 #   # Blas/Lapack virtual package provider
 #   netlib-lapack:
@@ -84,10 +68,10 @@ packages:
 # Dev tools
   cmake:
     buildable: false
-    version: [3.14.5]
+    version: [3.23.1]
     externals:
-    - spec: cmake@3.14.5
-      prefix: /usr/tce/packages/cmake/cmake-3.14.5
+    - spec: cmake@3.23.1
+      prefix: /usr/tce/packages/cmake/cmake-3.23.1
 
   python:
     buildable: false
