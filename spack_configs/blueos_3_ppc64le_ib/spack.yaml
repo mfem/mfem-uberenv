@@ -29,7 +29,7 @@ spack:
 
   compilers::
   - compiler:
-      spec: gcc@8.3.1
+      spec: gcc@=8.3.1
       paths:
         cc: /usr/tce/packages/gcc/gcc-8.3.1/bin/gcc
         cxx: /usr/tce/packages/gcc/gcc-8.3.1/bin/g++
@@ -42,7 +42,7 @@ spack:
       environment: {}
       extra_rpaths: []
   - compiler:
-      spec: xl@16.1.1.12
+      spec: xl@=16.1.1.12
       paths:
         cc: /usr/tce/packages/xl/xl-2022.08.19/bin/xlc_r
         cxx: /usr/tce/packages/xl/xl-2022.08.19/bin/xlC_r

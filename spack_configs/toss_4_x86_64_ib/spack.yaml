@@ -29,7 +29,7 @@ spack:
 
   compilers::
   - compiler:
-      spec: gcc@10.3.1
+      spec: gcc@=10.3.1
       paths:
         cc: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/gcc
         cxx: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/g++
@@ -42,7 +42,7 @@ spack:
       environment: {}
       extra_rpaths: []
   - compiler:
-      spec: intel@2021.6.0
+      spec: intel@=2021.6.0
       paths:
         cc: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/icc
         cxx: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/icpc
@@ -133,9 +133,9 @@ spack:
 
     mvapich2:
       externals:
-        - spec: "mvapich2@2.3.6%gcc@10.3.1"
+        - spec: "mvapich2@2.3.6%gcc@=10.3.1"
           prefix: /usr/tce/packages/mvapich2/mvapich2-2.3.6-gcc-10.3.1-magic
-        - spec: "mvapich2@2.3.6%intel@2021.6.0"
+        - spec: "mvapich2@2.3.6%intel@=2021.6.0"
           prefix: /usr/tce/packages/mvapich2/mvapich2-2.3.6-intel-classic-2021.6.0-magic
 
     intel-oneapi-mkl:
