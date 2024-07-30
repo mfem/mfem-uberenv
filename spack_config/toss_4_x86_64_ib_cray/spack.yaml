@@ -519,28 +519,40 @@ spack:
         prefix: /usr/tce/packages/cray-mpich/cray-mpich-8.1.28-rocmcc-5.7.1-magic
       - spec: cray-mpich@8.1.29%rocmcc@6.1.1
         prefix: /usr/tce/packages/cray-mpich/cray-mpich-8.1.29-rocmcc-6.1.1-magic
+#    cray-libsci:
+#      buildable: false
+#      # version: [23.02.1.1]
+#      externals:
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@15.0.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@16.0.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@17.0.0
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%gcc@12.1.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.5.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.6.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.7.0
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.7.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+#        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@6.1.1
+#          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
     cray-libsci:
       buildable: false
       # version: [23.02.1.1]
       externals:
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@15.0.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@16.0.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%cce@17.0.0
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%gcc@12.1.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.5.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.6.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.7.0
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@5.7.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
-        - spec: cray-libsci@24.03.0+mpi~openmp+shared%rocmcc@6.1.1
-          prefix: /opt/cray/pe/libsci/24.03.0/cray/16.0/x86_64
+      # - spec: cray-libsci@23.02.1.1
+      #   modules:
+      #   - cray-libsci/23.02.1.1
+      - spec: "cray-libsci@24.03.0+mpi~openmp+shared"
+        modules:
+        - cray-libsci/24.03.0
+        - cray-mpich/8.1.29
+        - craype-network-ofi
     python:
       buildable: false
       version: [3.10.8]
