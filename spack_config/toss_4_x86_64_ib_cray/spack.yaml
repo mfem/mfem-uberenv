@@ -288,6 +288,24 @@ spack:
       modules: []
       environment: {}
       extra_rpaths: []
+  - compiler:
+      spec: rocmcc@6.3.1
+      paths:
+        cc: /opt/rocm-6.3.1/llvm/bin/amdclang
+        cxx: /opt/rocm-6.3.1/llvm/bin/amdclang++
+        f77: /opt/rocm-6.3.1/llvm/bin/amdflang
+        fc: /opt/rocm-6.3.1/llvm/bin/amdflang
+      flags: {}
+      operating_system: rhel8
+      target: x86_64
+      modules: []
+      environment:
+        append_path:
+          # libmpi_amd.so needs the path to libpmi*.so. By default
+          # LD_LIBRARY_PATH has this path but Spack clears it. This path is only
+          # needed for running tests from within Spack, e.g. with --test=root.
+          LD_LIBRARY_PATH: "/opt/cray/pe/lib64"
+      extra_rpaths: []
 
   packages::
     all:
@@ -323,7 +341,7 @@ spack:
       - spec: cuda@11.4.120
         prefix: /opt/toss/cudatoolkit/11.4/
     hip:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: hip@5.2.3%rocmcc@=5.2.3
@@ -344,8 +362,10 @@ spack:
         prefix: /opt/rocm-5.7.1/hip
       - spec: hip@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/hip
+      - spec: hip@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     llvm-amdgpu:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: llvm-amdgpu@5.2.3%rocmcc@=5.2.3
@@ -366,8 +386,10 @@ spack:
         prefix: /opt/rocm-5.7.1/llvm
       - spec: llvm-amdgpu@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/llvm
+      - spec: llvm-amdgpu@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     hsa-rocr-dev:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: hsa-rocr-dev@5.2.3%rocmcc@=5.2.3
@@ -388,8 +410,10 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: hsa-rocr-dev@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: hsa-rocr-dev@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     rocminfo:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: rocminfo@5.2.3%rocmcc@=5.2.3
@@ -410,8 +434,74 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: rocminfo@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: rocminfo@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocm-core:
+      version: [5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocm-core@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocm-core@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocm-core@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocm-core@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocm-core@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocm-core@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocblas:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocblas@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: rocblas@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: rocblas@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: rocblas@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: rocblas@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocblas@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocblas@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocblas@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocblas@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocblas@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    hipblas:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: hipblas@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: hipblas@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: hipblas@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: hipblas@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: hipblas@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: hipblas@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: hipblas@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: hipblas@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: hipblas@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: hipblas@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     rocsparse:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: rocsparse@5.2.3%rocmcc@=5.2.3
@@ -432,8 +522,10 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: rocsparse@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: rocsparse@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     hipsparse:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: hipsparse@5.2.3%rocmcc@=5.2.3
@@ -454,8 +546,10 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: hipsparse@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: hipsparse@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     rocm-device-libs:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: rocm-device-libs@5.2.3%rocmcc@=5.2.3
@@ -476,8 +570,10 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: rocm-device-libs@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: rocm-device-libs@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     rocprim:
-      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1]
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
       buildable: false
       externals:
       - spec: rocprim@5.2.3%rocmcc@=5.2.3
@@ -498,6 +594,200 @@ spack:
         prefix: /opt/rocm-5.7.1/
       - spec: rocprim@6.1.1%rocmcc@=6.1.1
         prefix: /opt/rocm-6.1.1/
+      - spec: rocprim@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocrand:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocrand@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: rocrand@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: rocrand@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: rocrand@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: rocrand@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocrand@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocrand@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocrand@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocrand@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocrand@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    hiprand:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: hiprand@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: hiprand@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: hiprand@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: hiprand@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: hiprand@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: hiprand@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: hiprand@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: hiprand@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: hiprand@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: hiprand@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocthrust:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocthrust@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: rocthrust@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: rocthrust@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: rocthrust@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: rocthrust@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocthrust@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocthrust@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocthrust@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocthrust@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocthrust@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocsolver:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocsolver@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: rocsolver@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: rocsolver@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: rocsolver@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: rocsolver@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocsolver@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocsolver@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocsolver@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocsolver@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocsolver@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    hipsolver:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: hipsolver@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: hipsolver@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: hipsolver@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: hipsolver@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: hipsolver@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: hipsolver@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: hipsolver@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: hipsolver@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: hipsolver@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: hipsolver@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    rocfft:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: rocfft@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: rocfft@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: rocfft@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: rocfft@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: rocfft@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: rocfft@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: rocfft@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: rocfft@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: rocfft@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: rocfft@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    hipfft:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: hipfft@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: hipfft@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: hipfft@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: hipfft@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: hipfft@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: hipfft@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: hipfft@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: hipfft@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: hipfft@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: hipfft@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
+    hipcub:
+      version: [5.2.3, 5.3.0, 5.4.1, 5.4.3, 5.5.1, 5.6.1, 5.7.0, 5.7.1, 6.1.1, 6.3.1]
+      buildable: false
+      externals:
+      - spec: hipcub@5.2.3%rocmcc@=5.2.3
+        prefix: /opt/rocm-5.2.3/
+      - spec: hipcub@5.3.0%rocmcc@=5.3.0
+        prefix: /opt/rocm-5.3.0/
+      - spec: hipcub@5.4.1%rocmcc@=5.4.1
+        prefix: /opt/rocm-5.4.1/
+      - spec: hipcub@5.4.3%rocmcc@=5.4.3
+        prefix: /opt/rocm-5.4.3/
+      - spec: hipcub@5.5.1%rocmcc@=5.5.1
+        prefix: /opt/rocm-5.5.1/
+      - spec: hipcub@5.6.1%rocmcc@=5.6.1
+        prefix: /opt/rocm-5.6.1/
+      - spec: hipcub@5.7.0%rocmcc@=5.7.0
+        prefix: /opt/rocm-5.7.0/
+      - spec: hipcub@5.7.1%rocmcc@=5.7.1
+        prefix: /opt/rocm-5.7.1/
+      - spec: hipcub@6.1.1%rocmcc@=6.1.1
+        prefix: /opt/rocm-6.1.1/
+      - spec: hipcub@6.3.1%rocmcc@=6.3.1
+        prefix: /opt/rocm-6.3.1
     cray-mpich:
       buildable: false
       externals:
@@ -519,6 +809,8 @@ spack:
         prefix: /usr/tce/packages/cray-mpich/cray-mpich-8.1.28-rocmcc-5.7.1-magic
       - spec: cray-mpich@8.1.29%rocmcc@6.1.1
         prefix: /usr/tce/packages/cray-mpich/cray-mpich-8.1.29-rocmcc-6.1.1-magic
+      - spec: cray-mpich@8.1.31%rocmcc@6.3.1
+        prefix: /usr/tce/packages/cray-mpich/cray-mpich-8.1.31-rocmcc-6.3.1-magic
 #    cray-libsci:
 #      buildable: false
 #      # version: [23.02.1.1]
@@ -553,6 +845,8 @@ spack:
         - cray-libsci/24.03.0
         - cray-mpich/8.1.29
         - craype-network-ofi
+      - spec: "cray-libsci@24.11.0%rocmcc+mpi~openmp+shared"
+        prefix: /opt/cray/pe/libsci/24.11.0/AMD/6.0/x86_64
     python:
       buildable: false
       version: [3.10.8]

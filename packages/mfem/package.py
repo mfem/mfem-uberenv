@@ -283,6 +283,7 @@ class Mfem(Package, CudaPackage, ROCmPackage):
 
     depends_on("mpi", when="+mpi")
     depends_on("hipsparse", when="@4.4.0:+rocm")
+    depends_on("hipblas", when="@4.8.0:+rocm")
 
     with when("+mpi"):
         depends_on("hypre")
@@ -974,9 +975,11 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             if "^rocthrust" in spec and not spec["hip"].external:
                 # petsc+rocm needs the rocthrust header path
                 hip_headers += spec["rocthrust"].headers
-            if "^hipblas" in spec and not spec["hip"].external:
-                # superlu-dist+rocm needs the hipblas header path
-                hip_headers += spec["hipblas"].headers
+            if "^hipblas" in spec:  # hipblas is needed @4.8.0:+rocm
+                # note: superlu-dist+rocm needs the hipblas header path too
+                hipblas = spec["hipblas"]
+                hip_headers += hipblas.headers
+                hip_libs += hipblas.libs
             if "%cce" in spec:
                 # We assume the proper Cray CCE module (cce) is loaded:
                 proc = str(spec.target.family)
@@ -999,6 +1002,13 @@ class Mfem(Package, CudaPackage, ROCmPackage):
                 hip_libs += find_libraries(craylibs, craylibs_path)
                 craylibs_path2 = join_path(craylibs_path, "../../../cce-clang", proc, "lib")
                 hip_libs += find_libraries("libunwind", craylibs_path2)
+            elif spec.satisfies("%rocmcc ^cray-mpich"):
+                # The AMD version of cray-mpich, libmpi_amd.so, needs the rpath
+                # to libflang.so (also needed for libpgmath.so and others).
+                rocmcc_bin_dir = os.path.dirname(env["SPACK_CXX"])
+                rocmcc_prefix = os.path.dirname(rocmcc_bin_dir)
+                rocmcc_libflang = find_libraries("libflang", rocmcc_prefix, recursive=True)
+                hip_libs += rocmcc_libflang
 
             if hip_headers:
                 options += ["HIP_OPT=%s" % hip_headers.cpp_flags]
