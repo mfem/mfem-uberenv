@@ -4,6 +4,9 @@
 "package_final_phase" : "configure",
 "package_source_dir" : "../..",
 "spack_url": "https://github.com/spack/spack",
-"spack_commit": "e974b44e8673ded449ce4a3ed5844398b68e81a2",
-"spack_activate" : {}
+"spack_commit": "aeaa922eef45b14199b486fa2c188252df8c9544",
+"spack_activate" : {},
+"spack_concretizer": "clingo",
+"spack_setup_clingo": false,
+"debug": true
 }

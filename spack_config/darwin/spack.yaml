@@ -1,0 +1,139 @@
+spack:
+
+  config:
+    install_tree:
+      root: $spack/..
+      padded_length: 128
+      projections:
+        all: "{compiler.name}-{compiler.version}/{name}-{version}-{hash}"
+    # Note: unlike projects using RADIUSS Spack
+    # Configs, Serac is using "$spack/.." as the root
+    # of Spack cache directories. We share the goal of
+    # making sure that Spack instances do not collide,
+    # our choice supposes that $user_cache_path is
+    # defined to that purpose, but Serac is enforcing
+    # it for the cache directories.
+    # The reason for not adopting the same strategy as
+    # Serac is because there are other directories
+    # created by Spack that need to be porperly
+    # isolated. Therefore, setting the
+    # "user_cache_path" properly isstill mandatory.
+    build_stage::
+      - $user_cache_path/stage
+    test_stage: $user_cache_path/test
+    misc_cache: $user_cache_path/misc
+    flags:
+      keep_werror: 'all'
+
+    view: false
+
+  compilers::
+  - compiler:
+      spec: apple-clang@10.0.0
+      paths:
+        cc: /usr/bin/clang
+        cxx: /usr/bin/clang++
+        f77: /usr/local/bin/gfortran
+        fc: /usr/local/bin/gfortran
+      flags: {}
+      operating_system: mojave
+      target: x86_64
+      modules: []
+      environment: {}
+      extra_rpaths: []
+  - compiler:
+      spec: clang@10.0.0
+      paths:
+        cc: /usr/local/opt/llvm/bin/clang
+        cxx: /usr/local/opt/llvm/bin/clang++
+        f77: /usr/local/bin/gfortran
+        fc: /usr/local/bin/gfortran
+      flags: {}
+      operating_system: mojave
+      target: x86_64
+      modules: []
+      environment: {}
+      extra_rpaths: []
+  - compiler:
+      spec: apple-clang@11.0.0
+      paths:
+        cc: /usr/bin/clang
+        cxx: /usr/bin/clang++
+        f77: /usr/local/bin/gfortran
+        fc: /usr/local/bin/gfortran
+      flags: {}
+      operating_system: catalina
+      target: x86_64
+      modules: []
+      environment: {}
+      extra_rpaths: []
+
+  packages::
+    bzip2:
+      buildable: false
+      externals:
+        - spec: bzip2
+          prefix: /usr/bin/
+
+    gettext:
+      buildable: false
+      externals:
+        - spec: gettext
+          prefix: /usr/local/bin/
+
+    m4:
+      buildable: false
+      externals:
+        - spec: m4
+          prefix: /usr/bin/
+
+    pkg-config:
+      buildable: false
+      externals:
+        - spec: pkg-config
+          prefix: /usr/local/bin/
+
+    tar:
+      buildable: false
+      externals:
+        - spec: tar
+          prefix: /usr/bin/
+
+    perl:
+      buildable: false
+      externals:
+        - spec: perl
+          prefix: /usr/local/bin/
+
+    cmake:
+      buildable: false
+      externals:
+        - spec: cmake
+          prefix: /usr/local/bin/
+  #     - spec: cmake@3.17.2
+  #       prefix: /usr/local/Cellar/cmake/3.17.2/bin/
+
+  #  openmpi:
+  #    buildable: false
+  #    externals:
+  #      - spec: openmpi
+  #        prefix: /usr/local/
+  ##     - spec: openmpi@4.0.3
+  ##       prefix: /usr/local/Cellar/open-mpi/4.0.3/bin/
+
+    mpich:
+      buildable: false
+      externals:
+        - spec: mpich
+          prefix: /usr/local/
+  #      - spec: mpich@3.3.2
+  #        prefix: /usr/local/Cellar/mpich/3.3.2_1
+
+    openblas:
+      buildable: false
+      externals:
+        - spec: openblas
+          prefix: /usr/local/opt/openblas/
+  #     - spec: openmpi@4.0.3
+  #       prefix: /usr/local/Cellar/open-mpi/4.0.3/bin/
+

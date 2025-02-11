@@ -1,0 +1,162 @@
+spack:
+
+  config:
+    install_tree:
+      root: $spack/..
+      padded_length: 128
+      projections:
+        all: "{compiler.name}-{compiler.version}/{name}-{version}-{hash}"
+    # Note: unlike projects using RADIUSS Spack
+    # Configs, Serac is using "$spack/.." as the root
+    # of Spack cache directories. We share the goal of
+    # making sure that Spack instances do not collide,
+    # our choice supposes that $user_cache_path is
+    # defined to that purpose, but Serac is enforcing
+    # it for the cache directories.
+    # The reason for not adopting the same strategy as
+    # Serac is because there are other directories
+    # created by Spack that need to be porperly
+    # isolated. Therefore, setting the
+    # "user_cache_path" properly isstill mandatory.
+    build_stage::
+      - $user_cache_path/stage
+    test_stage: $user_cache_path/test
+    misc_cache: $user_cache_path/misc
+    flags:
+      keep_werror: 'all'
+
+    view: false
+
+  compilers::
+  - compiler:
+      spec: gcc@=10.3.1
+      paths:
+        cc: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/gcc
+        cxx: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/g++
+        f77: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/gfortran
+        fc: /usr/tce/packages/gcc/gcc-10.3.1-magic/bin/gfortran
+      flags: {}
+      operating_system: rhel8
+      target: x86_64
+      modules: []
+      environment: {}
+      extra_rpaths: []
+  - compiler:
+      spec: intel@=2021.6.0
+      paths:
+        cc: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/icc
+        cxx: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/icpc
+        f77: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/ifort
+        fc: /usr/tce/packages/intel-classic/intel-classic-2021.6.0-magic/bin/ifort
+      flags: {}
+      operating_system: rhel8
+      target: x86_64
+      modules: []
+      environment: {}
+      extra_rpaths: []
+
+  packages::
+    zlib:
+      externals:
+        - spec: "zlib@1.2.11"
+          prefix: /usr
+      buildable: False
+
+    cmake:
+      externals:
+        - spec: "cmake@3.23.1"
+          prefix: /usr/tce/packages/cmake/cmake-3.23.1
+      buildable: False
+
+    python:
+      externals:
+        - spec: "python@3.9.12"
+          prefix: /usr/tce/packages/python/python-3.9.12
+      buildable: False
+
+    git:
+      externals:
+        - spec: "git@2.29.1"
+          prefix: /usr/tce/packages/git/git-2.29.1
+      buildable: False
+
+    # for petsc:
+    diffutils:
+      externals:
+        - spec: "diffutils@3.6"
+          prefix: /usr
+      buildable: False
+
+    libx11:
+      externals:
+        - spec: "libx11@1.6.8"
+          prefix: /usr
+      buildable: False
+
+    libxext:
+      externals:
+        - spec: "libxext@1.3.4"
+          prefix: /usr
+      buildable: False
+
+    libxt:
+      externals:
+        - spec: "libxt@1.1.5"
+          prefix: /usr
+      buildable: False
+
+    xproto:
+      externals:
+        # see /usr/share/pkgconfig/xproto.pc
+        - spec: "xproto@7.0.32"
+          prefix: /usr
+      buildable: False
+
+    opengl:
+      externals:
+        # see /usr/lib64/pkgconfig/opengl.pc
+        - spec: "opengl@4.5"
+          prefix: /usr
+      buildable: False
+
+    freetype:
+      externals:
+        - spec: "freetype@2.9.1"
+          prefix: /usr
+      buildable: False
+
+    fontconfig:
+      externals:
+        - spec: "fontconfig@2.13.1"
+          prefix: /usr
+      buildable: False
+
+    mvapich2:
+      externals:
+        - spec: "mvapich2@2.3.6%gcc@=10.3.1"
+          prefix: /usr/tce/packages/mvapich2/mvapich2-2.3.6-gcc-10.3.1-magic
+        - spec: "mvapich2@2.3.6%intel@=2021.6.0"
+          prefix: /usr/tce/packages/mvapich2/mvapich2-2.3.6-intel-classic-2021.6.0-magic
+
+    intel-oneapi-mkl:
+      externals:
+        - spec: "intel-oneapi-mkl@2023.0.0"
+          prefix: /opt/intel/oneapi
+      buildable: False
+
+    openblas:
+      externals:
+        - spec: "openblas@0.3.15"
+          prefix: /usr
+      buildable: False
+
+    all:
+      compiler: [gcc, intel]
+      providers:
+        mpi: [mvapich2, mpich, openmpi]
+        # blas: [intel-oneapi-mkl, openblas]
+        # lapack: [intel-oneapi-mkl, openblas]
+        # scalapack: [intel-oneapi-mkl, netlib-scalapack]
+        blas: [openblas]
+        lapack: [openblas]
+        scalapack: [netlib-scalapack]
