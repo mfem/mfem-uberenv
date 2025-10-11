@@ -305,7 +305,10 @@ spack:
           # LD_LIBRARY_PATH has this path but Spack clears it. This path is only
           # needed for running tests from within Spack, e.g. with --test=root.
           LD_LIBRARY_PATH: "/opt/cray/pe/lib64"
-      extra_rpaths: []
+      extra_rpaths:
+      # cray-mpich, cray-libsci, etc (AMD versions) need libflang.so and
+      # other libraries in this directory:
+      - /opt/rocm-6.3.1/lib/llvm/lib
 
   packages::
     all:
