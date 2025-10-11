@@ -56,6 +56,18 @@ spack:
       extra_rpaths: []
 
   packages::
+    cuda:
+      buildable: False
+      externals:
+      - spec: "cuda@12.9.1"
+        prefix: /usr/tce/packages/cuda/cuda-12.9.1
+    cub:
+      buildable: False
+      # the version number is in <prefix>/include/cub/version.cuh
+      externals:
+      - spec: "cub@2.8.2"
+        prefix: /usr/tce/packages/cuda/cuda-12.9.1
+
     zlib:
       externals:
         - spec: "zlib@1.2.11"
