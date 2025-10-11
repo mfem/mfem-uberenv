@@ -291,10 +291,10 @@ spack:
   - compiler:
       spec: rocmcc@6.3.1
       paths:
-        cc: /opt/rocm-6.3.1/llvm/bin/amdclang
-        cxx: /opt/rocm-6.3.1/llvm/bin/amdclang++
-        f77: /opt/rocm-6.3.1/llvm/bin/amdflang
-        fc: /opt/rocm-6.3.1/llvm/bin/amdflang
+        cc: /opt/rocm-6.3.1/bin/amdclang
+        cxx: /opt/rocm-6.3.1/bin/amdclang++
+        f77: /opt/rocm-6.3.1/bin/amdflang
+        fc: /opt/rocm-6.3.1/bin/amdflang
       flags: {}
       operating_system: rhel8
       target: x86_64
