@@ -51,6 +51,13 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     version("develop", branch="master")
 
     version(
+        "4.8.0",
+        sha256="49bd2a076b0d87863092cb55f8524b5292d9afb2e48c19f80222ada367819016",
+        url="https://bit.ly/mfem-4-8",
+        extension="tar.gz",
+    )
+
+    version(
         "4.7.0",
         sha256="5e889493f5f79848f7b2d16afaae307c59880ac2a7ff2315551c60ca54717751",
         url="https://bit.ly/mfem-4-7",
@@ -229,7 +236,15 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     variant(
         "cxxstd",
         default="auto",
-        values=("auto", conditional("98", when="@:3"), "11", "14", "17"),
+        values=(
+            "auto",
+            conditional("98", when="@:3"),
+            conditional("11", when="@:4.8"),
+            conditional("14", when="@:4.8"),
+            "17",
+            "20",
+            "23",
+        ),
         multi=False,
         description="C++ language standard",
     )
@@ -310,8 +325,10 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     depends_on("sundials@2.7.0:+mpi+hypre", when="@3.3.2:+sundials+mpi")
     depends_on("sundials@5.0.0:5", when="@4.0.1-xsdk:4.4+sundials~mpi")
     depends_on("sundials@5.0.0:5+mpi+hypre", when="@4.0.1-xsdk:4.4+sundials+mpi")
-    depends_on("sundials@5.0.0:6.7.0", when="@4.5.0:+sundials~mpi")
-    depends_on("sundials@5.0.0:6.7.0+mpi+hypre", when="@4.5.0:+sundials+mpi")
+    depends_on("sundials@5.0.0:6.7.0", when="@4.5.0:4.6+sundials~mpi")
+    depends_on("sundials@5.0.0:6.7.0+mpi+hypre", when="@4.5.0:4.6+sundials+mpi")
+    depends_on("sundials@5.0.0:", when="@4.7.0:+sundials~mpi")
+    depends_on("sundials@5.0.0:+mpi+hypre", when="@4.7.0:+sundials+mpi")
     conflicts("cxxstd=11", when="^sundials@6.4.0:")
     for sm_ in CudaPackage.cuda_arch_values:
         depends_on(
@@ -331,6 +348,7 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     depends_on("gslib~mpi~mpiio", when="+gslib~mpi")
     depends_on("gslib@1.0.5:1.0.6", when="@:4.2+gslib")
     depends_on("gslib@1.0.7:", when="@4.3.0:+gslib")
+    depends_on("gslib@1.0.9:", when="@4.8.0:+gslib")
     depends_on("suite-sparse", when="+suite-sparse")
     depends_on("superlu-dist", when="+superlu-dist")
     # If superlu-dist is built with +cuda, propagate cuda_arch
@@ -361,6 +379,8 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     # MUMPS (and SuiteSparse in older versions). On the other hand, PETSc built
     # with MUMPS is not strictly required, so we do not require it here.
     depends_on("petsc@3.8:+mpi+hypre", when="+petsc")
+    # rocPRIM is a dependency when using petsc+rocm and requires C++14 or newer:
+    conflicts("cxxstd=11", when="^rocprim@5.5.0:")
     depends_on("slepc@3.8.0:", when="+slepc")
     # If petsc is built with +cuda, propagate cuda_arch to petsc and slepc
     for sm_ in CudaPackage.cuda_arch_values:
@@ -383,8 +403,10 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     depends_on("conduit@0.3.1:,master:", when="+conduit")
     depends_on("conduit+mpi", when="+conduit+mpi")
     depends_on("libfms@0.2.0:", when="+fms")
-    depends_on("ginkgo@1.4.0:", when="+ginkgo")
+    depends_on("ginkgo@1.4.0:1.8", when="@:4.7+ginkgo")
+    depends_on("ginkgo@1.9.0:", when="@4.8:+ginkgo")
     conflicts("cxxstd=11", when="^ginkgo")
+    conflicts("cxxstd=14", when="^ginkgo@1.9:")
     for sm_ in CudaPackage.cuda_arch_values:
         depends_on(
             "ginkgo+cuda cuda_arch={0}".format(sm_), when="+ginkgo+cuda cuda_arch={0}".format(sm_)
@@ -509,6 +531,8 @@ class Mfem(Package, CudaPackage, ROCmPackage):
         sha256="2a31682d876626529e2778a216d403648b83b90997873659a505d982d0e65beb",
     )
     patch("mfem-4.7.patch", when="@4.7.0")
+    patch("mfem-4.7-sundials-7.patch", when="@4.7.0+sundials ^sundials@7:")
+    patch("mfem-4.8-nvcc-c++17.patch", when="@4.8.0+cuda")
 
     phases = ["configure", "build", "install"]
 
@@ -565,7 +589,7 @@ class Mfem(Package, CudaPackage, ROCmPackage):
                 mfem_mpiexec = "jsrun"
                 mfem_mpiexec_np = "-p"
         elif "FLUX_EXEC_PATH" in os.environ:
-            mfem_mpiexec = "flux run"
+            mfem_mpiexec = "flux run -x -N 1"
             mfem_mpiexec_np = "-n"
         elif "PBS_JOBID" in os.environ:
             mfem_mpiexec = "mpiexec"
@@ -632,8 +656,15 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             cxxstd = "14"
         if self.spec.satisfies("^sundials@6.4.0:"):
             cxxstd = "14"
-        if self.spec.satisfies("^ginkgo"):
+        # When rocPRIM is used (e.g. by PETSc + ROCm) we need C++14:
+        if self.spec.satisfies("^rocprim@5.5.0:"):
             cxxstd = "14"
+        if self.spec.satisfies("^ginkgo@1.4.0:1.8"):
+            cxxstd = "14"
+        if self.spec.satisfies("^ginkgo@1.9.0:"):
+            cxxstd = "17"
+        if self.spec.satisfies("@4.9.0:"):
+            cxxstd = "17"
         cxxstd_req = spec.variants["cxxstd"].value
         if cxxstd_req != "auto":
             # Constraints for valid standard level should be imposed during
@@ -666,8 +697,12 @@ class Mfem(Package, CudaPackage, ROCmPackage):
 
             cxxflags = [(xcompiler + flag) for flag in cxxflags]
             if "+cuda" in spec:
+                nvcc_base_flags = "-x=cu --expt-extended-lambda"
+                if spec.satisfies("@4.9.0:"):
+                    nvcc_base_flags += " --expt-relaxed-constexpr"
                 cxxflags += [
-                    "-x=cu --expt-extended-lambda -arch=sm_%s" % cuda_arch,
+                    nvcc_base_flags,
+                    "-arch=sm_%s" % cuda_arch,
                     "-ccbin %s" % (spec["mpi"].mpicxx if "+mpi" in spec else env["CXX"]),
                 ]
             if cxxstd_flag:
@@ -696,11 +731,12 @@ class Mfem(Package, CudaPackage, ROCmPackage):
         if "+mpi" in spec:
             options += ["MPICXX=%s" % spec["mpi"].mpicxx]
             hypre = spec["hypre"]
-            # The hypre package always links with 'blas' and 'lapack'.
-            all_hypre_libs = hypre.libs + hypre["lapack"].libs + hypre["blas"].libs
+            all_hypre_libs = hypre.libs
+            if "+lapack" in hypre:
+                all_hypre_libs += hypre["lapack"].libs + hypre["blas"].libs
             hypre_gpu_libs = ""
             if "+cuda" in hypre:
-                hypre_gpu_libs = " -lcusparse -lcurand -lcublas"
+                hypre_gpu_libs = " -lcusolver -lcusparse -lcurand -lcublas"
             elif "+rocm" in hypre:
                 hypre_rocm_libs = LibraryList([])
                 if "^rocsparse" in hypre:
@@ -840,7 +876,7 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             ]
 
         if "+pumi" in spec:
-            pumi_libs = [
+            pumi_libs_names = [
                 "pumi",
                 "crv",
                 "ma",
@@ -854,6 +890,11 @@ class Mfem(Package, CudaPackage, ROCmPackage):
                 "apf_zoltan",
                 "spr",
             ]
+            pumi_libs_names = ["lib" + name for name in pumi_libs_names]
+            pumi = spec["pumi"]
+            pumi_libs = find_libraries(
+                pumi_libs_names, pumi.prefix, shared=("+shared" in pumi), recursive=True
+            )
             pumi_dep_zoltan = ""
             pumi_dep_parmetis = ""
             if "+zoltan" in spec["pumi"]:
@@ -865,11 +906,7 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             options += [
                 "PUMI_OPT=-I%s" % spec["pumi"].prefix.include,
                 "PUMI_LIB=%s %s %s"
-                % (
-                    ld_flags_from_dirs([spec["pumi"].prefix.lib], pumi_libs),
-                    pumi_dep_zoltan,
-                    pumi_dep_parmetis,
-                ),
+                % (ld_flags_from_library_list(pumi_libs), pumi_dep_zoltan, pumi_dep_parmetis),
             ]
 
         if "+gslib" in spec:
@@ -975,6 +1012,9 @@ class Mfem(Package, CudaPackage, ROCmPackage):
             if "^rocthrust" in spec and not spec["hip"].external:
                 # petsc+rocm needs the rocthrust header path
                 hip_headers += spec["rocthrust"].headers
+            if "^rocprim" in spec and not spec["hip"].external:
+                # rocthrust [via petsc+rocm] has a dependency on rocprim
+                hip_headers += spec["rocprim"].headers
             if "^hipblas" in spec:  # hipblas is needed @4.8.0:+rocm
                 # note: superlu-dist+rocm needs the hipblas header path too
                 hipblas = spec["hipblas"]
@@ -1007,8 +1047,17 @@ class Mfem(Package, CudaPackage, ROCmPackage):
                 # to libflang.so (also needed for libpgmath.so and others).
                 rocmcc_bin_dir = os.path.dirname(env["SPACK_CXX"])
                 rocmcc_prefix = os.path.dirname(rocmcc_bin_dir)
-                rocmcc_libflang = find_libraries("libflang", rocmcc_prefix, recursive=True)
+                rocmcc_libflang = find_libraries(
+                    "libflang", join_path(rocmcc_prefix, "lib/llvm/lib"), recursive=False
+                )
                 hip_libs += rocmcc_libflang
+            if spec.satisfies("^cray-mpich"):
+                # The cray-mpich library, libmpi_*.so, needs the rpath to
+                # libpmi.so.0 and libpmi2.so.0 if that path is not configured
+                # properly on system level.
+                libpmi_lib = find_libraries("libpmi", "/opt/cray/pe/lib64")
+                if libpmi_lib:
+                    hip_libs += libpmi_lib
 
             if hip_headers:
                 options += ["HIP_OPT=%s" % hip_headers.cpp_flags]
